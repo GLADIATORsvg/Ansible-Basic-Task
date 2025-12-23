@@ -1,68 +1,69 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Tests
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MYSQL_DATABASE: lrv
+          MYSQL_USER: lrv
+          MYSQL_PASSWORD: lrv
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
     env:
-      DB_HOST: localhost
+      DB_HOST: 127.0.0.1
       DB_NAME: lrv
       DB_USER: lrv
-      DB_PASS: ${{ secrets.GITHUB_TOKEN }}
+      DB_PASS: lrv
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v5
 
-      - name: Update apt
-        run: sudo apt update
-        
-      - name: Install ufw
-        run: sudo apt install ufw -y
-      
-      - name: Setup Ansible
-        run: python3 -m pip install --user ansible
-        
-      - name: Set masked outputs
-        run: |
-          echo "::add-mask::$DB_HOST"
-          echo "::add-mask::$DB_NAME"
-          echo "::add-mask::$DB_USER"
-          echo "::add-mask::$DB_PASS"
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, mysql
 
-      - name: Run Ansible playbook
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Prepare Laravel
         run: |
-          cat << EOF > hosts
-          [server]
-          localhost
-          [db]
-          localhost
-          EOF
-          ansible-playbook -i ./hosts main.yml -e "db_host=$DB_HOST db_name=$DB_NAME db_user=$DB_USER db_pass=$DB_PASS" -c local
+          cp .env.example .env
+          php artisan key:generate
+          php artisan migrate --force
+
+      - name: Start Laravel server
+        run: php artisan serve --host=127.0.0.1 --port=8000 &
       
-      - name: Test application
+      - name: Wait for Laravel to be ready
+        run: npx wait-on http://127.0.0.1:8000
+
+      - name: Run Cypress tests
         uses: cypress-io/github-action@v6
         with:
           working-directory: ./.github/tests
+          config: baseUrl=http://127.0.0.1:8000
 
-      - name: Test if application uses MariaDB
+      - name: Verify MariaDB connection
         run: |
           sudo apt-get install mariadb-client -y
           mysql -h $DB_HOST -u $DB_USER -D $DB_NAME -p$DB_PASS -e 'SHOW TABLES;' | grep users
-  
