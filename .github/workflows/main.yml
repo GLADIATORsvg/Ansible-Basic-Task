@@ -40,6 +40,9 @@ jobs:
       - name: Wait for Apache/Laravel to be ready
         run: npx wait-on http://127.0.0.1
 
+      - name: Debug Laravel response
+        run: curl -i http://127.0.0.1/login || true
+
       - name: Run Cypress tests
         uses: cypress-io/github-action@v6
         with:
