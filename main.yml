@@ -50,7 +50,7 @@
           - unzip
           - composer
           - php
-          - php-session
+          - php-sqlite3
           - php-mysql
           - php-xml
           - php-mbstring
