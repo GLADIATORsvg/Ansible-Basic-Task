@@ -126,6 +126,29 @@
       command: php artisan cache:clear
       args:
         chdir: "{{ app_path }}"
+
+    - name: Clear Laravel view cache
+      command: php artisan view:clear
+      args:
+        chdir: "{{ app_path }}"
+
+    - name: Fix Laravel writable directories permissions
+      file:
+        path: "{{ app_path }}/storage"
+        state: directory
+        recurse: yes
+        owner: www-data
+        group: www-data
+        mode: "0775"
+
+    - name: Fix Laravel bootstrap cache permissions
+      file:
+        path: "{{ app_path }}/bootstrap/cache"
+        state: directory
+        recurse: yes
+        owner: www-data
+        group: www-data
+        mode: "0775"
         
     - name: Configure Apache virtual host
       copy:
