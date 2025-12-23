@@ -116,6 +116,16 @@
       command: php artisan db:seed --force
       args:
         chdir: "{{ app_path }}"
+
+    - name: Clear Laravel config cache
+      command: php artisan config:clear
+      args:
+        chdir: "{{ app_path }}"
+
+    - name: Clear Laravel application cache
+      command: php artisan cache:clear
+      args:
+        chdir: "{{ app_path }}"
         
     - name: Configure Apache virtual host
       copy:
