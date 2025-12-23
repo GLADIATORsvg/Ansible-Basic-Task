@@ -50,6 +50,7 @@
           - unzip
           - composer
           - php
+          - php-session
           - php-mysql
           - php-xml
           - php-mbstring
