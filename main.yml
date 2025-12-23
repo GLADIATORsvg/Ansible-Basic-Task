@@ -45,6 +45,7 @@
       apt:
         name:
           - apache2
+          - libapache2-mod-php
           - git
           - unzip
           - composer
@@ -113,12 +114,12 @@
           <VirtualHost *:80>
               ServerName localhost
               DocumentRoot {{ app_path }}/public
-
-              <Directory {{ app_path }}>
+    
+              <Directory {{ app_path }}/public>
                   AllowOverride All
                   Require all granted
               </Directory>
-
+    
               ErrorLog ${APACHE_LOG_DIR}/laravel_error.log
               CustomLog ${APACHE_LOG_DIR}/laravel_access.log combined
           </VirtualHost>
