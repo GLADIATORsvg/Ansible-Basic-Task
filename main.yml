@@ -33,6 +33,7 @@
         state: present
         login_unix_socket: /var/run/mysqld/mysqld.sock
         
+---
  - name: Configure Apache web server and deploy Laravel app
   hosts: server
   become: true
