@@ -106,7 +106,17 @@
       command: php artisan key:generate
       args:
         chdir: "{{ app_path }}"
+        
+    - name: Run database migrations
+      command: php artisan migrate --force
+      args:
+        chdir: "{{ app_path }}"
 
+    - name: Seed database
+      command: php artisan db:seed --force
+      args:
+        chdir: "{{ app_path }}"
+        
     - name: Configure Apache virtual host
       copy:
         dest: /etc/apache2/sites-available/laravel.conf
