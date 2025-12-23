@@ -11,24 +11,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      mariadb:
-        image: mariadb:10.11
-        env:
-          MYSQL_DATABASE: lrv
-          MYSQL_USER: lrv
-          MYSQL_PASSWORD: lrv
-          MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-
     env:
-      DB_HOST: 127.0.0.1
+      DB_HOST: localhost
       DB_NAME: lrv
       DB_USER: lrv
       DB_PASS: lrv
@@ -36,34 +20,32 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          extensions: mbstring, pdo, mysql
-
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
-
-      - name: Prepare Laravel
+      - name: Install dependencies
         run: |
-          cp .env.example .env
-          php artisan key:generate
-          php artisan migrate --force
+          sudo apt update
+          sudo apt install -y python3-pip ansible mariadb-client wait-for-it
 
-      - name: Start Laravel server
-        run: php artisan serve --host=127.0.0.1 --port=8000 &
-      
-      - name: Wait for Laravel to be ready
-        run: npx wait-on http://127.0.0.1:8000
+      - name: Create Ansible inventory
+        run: |
+          cat << EOF > hosts
+          [server]
+          localhost
+          [db]
+          localhost
+          EOF
+
+      - name: Run Ansible playbook
+        run: ansible-playbook -i ./hosts main.yml -e "db_host=$DB_HOST db_name=$DB_NAME db_user=$DB_USER db_pass=$DB_PASS" -c local
+
+      - name: Wait for Apache/Laravel to be ready
+        run: npx wait-on http://127.0.0.1
 
       - name: Run Cypress tests
         uses: cypress-io/github-action@v6
         with:
           working-directory: ./.github/tests
-          config: baseUrl=http://127.0.0.1:8000
+          config: baseUrl=http://127.0.0.1
 
       - name: Verify MariaDB connection
         run: |
-          sudo apt-get install mariadb-client -y
           mysql -h $DB_HOST -u $DB_USER -D $DB_NAME -p$DB_PASS -e 'SHOW TABLES;' | grep users
