@@ -1,1 +1,140 @@
 ---
+- name: Configure MariaDB server
+  hosts: db
+  become: true
+
+  tasks:
+    - name: Install MariaDB and dependencies
+      apt:
+        name:
+          - mariadb-server
+          - python3-pymysql
+        state: present
+        update_cache: yes
+
+    - name: Start and enable MariaDB
+      service:
+        name: mariadb
+        state: started
+        enabled: true
+
+    - name: Create database
+      community.mysql.mysql_db:
+        name: "{{ db_name }}"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Create database user
+      community.mysql.mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_pass }}"
+        priv: "{{ db_name }}.*:ALL"
+        host: "%"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        
+ - name: Configure Apache web server and deploy Laravel app
+  hosts: server
+  become: true
+
+  vars:
+    app_path: /var/www/app
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - apache2
+          - git
+          - unzip
+          - composer
+          - php
+          - php-mysql
+          - php-xml
+          - php-mbstring
+          - php-curl
+          - php-zip
+        state: present
+        update_cache: yes
+
+    - name: Enable Apache rewrite module
+      command: a2enmod rewrite
+      notify: Restart Apache
+
+    - name: Clone Laravel application repository
+      git:
+        repo: https://github.com/Practical-DevOps/app-for-devops
+        dest: "{{ app_path }}"
+        force: yes
+
+    - name: Set permissions for storage and bootstrap
+      file:
+        path: "{{ item }}"
+        state: directory
+        recurse: yes
+        owner: www-data
+        group: www-data
+        mode: "0775"
+      loop:
+        - "{{ app_path }}/storage"
+        - "{{ app_path }}/bootstrap/cache"
+
+    - name: Create .env file
+      copy:
+        dest: "{{ app_path }}/.env"
+        content: |
+          APP_NAME=Laravel
+          APP_ENV=production
+          APP_KEY=
+          APP_DEBUG=false
+          APP_URL=http://localhost
+
+          DB_CONNECTION=mysql
+          DB_HOST={{ db_host }}
+          DB_PORT=3306
+          DB_DATABASE={{ db_name }}
+          DB_USERNAME={{ db_user }}
+          DB_PASSWORD={{ db_pass }}
+
+    - name: Install composer dependencies
+      command: composer install --no-interaction
+      args:
+        chdir: "{{ app_path }}"
+
+    - name: Generate Laravel application key
+      command: php artisan key:generate
+      args:
+        chdir: "{{ app_path }}"
+
+    - name: Configure Apache virtual host
+      copy:
+        dest: /etc/apache2/sites-available/laravel.conf
+        content: |
+          <VirtualHost *:80>
+              ServerName localhost
+              DocumentRoot {{ app_path }}/public
+
+              <Directory {{ app_path }}>
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+
+              ErrorLog ${APACHE_LOG_DIR}/laravel_error.log
+              CustomLog ${APACHE_LOG_DIR}/laravel_access.log combined
+          </VirtualHost>
+
+    - name: Enable Laravel site
+      command: a2ensite laravel.conf
+      notify: Restart Apache
+
+    - name: Disable default Apache site
+      command: a2dissite 000-default.conf
+      notify: Restart Apache
+
+  handlers:
+    - name: Restart Apache
+      service:
+        name: apache2
+        state: restarted
+       
+
